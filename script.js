@@ -98,6 +98,31 @@ document.addEventListener('DOMContentLoaded', () => {
     setupCourseDropdown();
 });
 
+function updatePrintViewDropdown() {
+    const select = document.getElementById('printViewSelect');
+    const currentVal = select.value;
+
+    // Rebuild options
+    select.innerHTML = '<option value="all">All Semesters Combined</option>';
+
+    const activeSemesters = [
+        ...semesterOrder.filter(sem => state.routines[sem]),
+        ...Object.keys(state.routines).filter(sem => !semesterOrder.includes(sem))
+    ];
+
+    activeSemesters.forEach(sem => {
+        const opt = document.createElement('option');
+        opt.value = sem;
+        opt.textContent = sem;
+        select.appendChild(opt);
+    });
+
+    // Restore selection if still valid
+    if ([...select.options].some(o => o.value === currentVal)) {
+        select.value = currentVal;
+    }
+}
+
 function setupCourseDropdown() {
     const courseSelect = document.getElementById('courseSelect');
     const semesterSelect = document.getElementById('semesterSelect');
@@ -347,7 +372,17 @@ function renderSubjectsTable() {
         let facultyDropdown = '<select class="faculty-dropdown" onchange="handleFacultyChange(' + subject.id + ', this)">';
         facultyDropdown += '<option value="">Select Faculty</option>';
 
-        const semesterFaculty = facultyBySemester[subject.semester];
+        let semesterFaculty = facultyBySemester[subject.semester];
+
+        if (!semesterFaculty) {
+            const s = subject.semester.toLowerCase();
+            let matchKey = null;
+            if (s.includes('1st') || s.includes('sem i')) matchKey = 'Semester I';
+            else if (s.includes('3rd') || s.includes('sem iii')) matchKey = 'Semester III';
+            else if (s.includes('5th') || s.includes('sem v')) matchKey = 'Semester V';
+            semesterFaculty = matchKey ? facultyBySemester[matchKey] : null;
+        }
+
         if (semesterFaculty) {
             Object.keys(semesterFaculty).forEach(division => {
                 facultyDropdown += `<optgroup label="${division}">`;
@@ -406,7 +441,8 @@ function generateRoutineLogic() {
 
         const subjectsBySemester = {};
         state.subjects.forEach(subject => {
-            if (!subjectsBySemester[subject.semester]) subjectsBySemester[subject.semester] = [];
+            if (!subjectsBySemester[subject.semester])
+                subjectsBySemester[subject.semester] = [];
             subjectsBySemester[subject.semester].push(subject);
         });
 
@@ -419,52 +455,79 @@ function generateRoutineLogic() {
 
             if (totalRequired > totalSlots - days) {
                 allSuccess = false;
-                Swal.fire('Error', `${semester}: Total required classes (${totalRequired}) exceed available slots (${totalSlots - days} after lunch)`, 'error');
+                Swal.fire('Error', `${semester}: Total required classes (${totalRequired}) exceed available slots`, 'error');
                 return;
             }
 
-            const routine = Array(days).fill(null).map(() => Array(periods).fill(null));
+            // Build class pool
             const classPool = [];
-
             semesterSubjects.forEach(subject => {
                 for (let i = 0; i < subject.classes; i++) {
                     const teacher = state.teachers.find(t => t.id === subject.facultyId);
                     classPool.push({
-                        subjectId: subject.id, subjectName: subject.name, subjectCode: subject.code,
-                        teacherId: teacher ? teacher.id : null, teacherName: teacher ? teacher.name : 'Unassigned',
-                        division: teacher ? teacher.division : null, semester: semester
+                        subjectId: subject.id,
+                        subjectName: subject.name,
+                        subjectCode: subject.code,
+                        teacherId: teacher ? teacher.id : null,
+                        teacherName: teacher ? teacher.name : 'Unassigned',
+                        division: teacher ? teacher.division : null,
+                        semester: semester
                     });
                 }
             });
 
             shuffleArray(classPool);
-            const teacherLastPeriod = Array(days).fill(null).map(() => ({}));
 
-            let classIndex = 0;
-            for (let day = 0; day < days; day++) {
-                for (let period = 0; period < periods; period++) {
-                    if (period === 3) { routine[day][period] = { lunch: true }; continue; }
-
-                    if (classIndex < classPool.length) {
-                        const cls = classPool[classIndex];
-                        let attempts = 0;
-                        let selectedClass = cls;
-
-                        while (attempts < 5 && selectedClass.teacherId && teacherLastPeriod[day][selectedClass.teacherId] === period - 1) {
-                            const altIndex = Math.floor(Math.random() * (classPool.length - classIndex)) + classIndex;
-                            if (altIndex !== classIndex) {
-                                [classPool[classIndex], classPool[altIndex]] = [classPool[altIndex], classPool[classIndex]];
-                                selectedClass = classPool[classIndex];
-                            }
-                            attempts++;
-                        }
-
-                        routine[day][period] = selectedClass;
-                        if (selectedClass.teacherId) teacherLastPeriod[day][selectedClass.teacherId] = period;
-                        classIndex++;
-                    }
+            // ── KEY FIX: distribute evenly across days ──────────────────
+            // Build a list of (day, period) slots sorted so we visit
+            // each day once before revisiting — round-robin by day index
+            const orderedSlots = [];
+            for (let p = 0; p < periods; p++) {
+                for (let d = 0; d < days; d++) {
+                    if (p === 3) continue; // skip lunch period
+                    orderedSlots.push([d, p]);
                 }
             }
+            // orderedSlots is now: [d0p0, d1p0, d2p0...d5p0, d0p1, d1p1...]
+            // This ensures every day gets a class before any day gets a second one
+
+            const routine = Array(days).fill(null).map(() => Array(periods).fill(null));
+
+            // Set lunch for all days
+            for (let d = 0; d < days; d++) {
+                routine[d][3] = { lunch: true };
+            }
+
+            const teacherLastDay = {}; // track which day teacher last taught to avoid same-day conflicts
+
+            let classIndex = 0;
+            for (const [day, period] of orderedSlots) {
+                if (classIndex >= classPool.length) break;
+
+                let selectedClass = classPool[classIndex];
+                let attempts = 0;
+
+                // Try to avoid same teacher back-to-back on same day
+                while (attempts < 5 && selectedClass.teacherId) {
+                    const key = `${selectedClass.teacherId}_${day}`;
+                    const lastPeriod = teacherLastDay[key];
+                    if (lastPeriod !== undefined && lastPeriod === period - 1) {
+                        const altIndex = classIndex + 1 + Math.floor(Math.random() * (classPool.length - classIndex - 1));
+                        if (altIndex < classPool.length) {
+                            [classPool[classIndex], classPool[altIndex]] = [classPool[altIndex], classPool[classIndex]];
+                            selectedClass = classPool[classIndex];
+                        }
+                    } else break;
+                    attempts++;
+                }
+
+                routine[day][period] = selectedClass;
+                if (selectedClass.teacherId) {
+                    teacherLastDay[`${selectedClass.teacherId}_${day}`] = period;
+                }
+                classIndex++;
+            }
+
             state.routines[semester] = routine;
         });
 
@@ -515,7 +578,10 @@ function renderRoutine() {
 
     const periods = state.periodsPerDay;
     const days = state.days;
-    const activeSemesters = semesterOrder.filter(sem => state.routines[sem]);
+    const activeSemesters = [
+        ...semesterOrder.filter(sem => state.routines[sem]),       // original flow
+        ...Object.keys(state.routines).filter(sem => !semesterOrder.includes(sem)) // excel import
+    ];
 
     let html = '<div id="routineTableContainer">';
     html += '<table id="routineTable" style="width: 100%;"><thead><tr>';
@@ -554,13 +620,22 @@ function renderRoutine() {
 
                 if (cls && cls.lunch) {
                     html += `<td class="lunch-period semester-col" data-semester="${semester}" style="background: #fef3c7; color: #92400e; font-weight: 700; font-size: 9px; text-align: center;">LUNCH</td>`;
+                } else if (cls && cls.continued) {
+                    // 2nd period of a double-period lab — show continuation
+                    html += `<td class="semester-col" data-semester="${semester}" 
+              style="background: #dcfce7; font-size: 9px; text-align:center; color:#166534; font-style:italic;">
+              ↑ continued class
+             </td>`;
                 } else if (cls) {
-                    html += `<td class="semester-col" data-semester="${semester}" onclick="editCell('${semester}', ${d}, ${p})" style="cursor: pointer; font-size: 10px; padding: 6px;">
-                        <strong style="display: block; margin-bottom: 2px; color: #1e40af; font-size: 9px;">${cls.subjectName}</strong>
-                        <span style="font-size: 8px; color: #059669; font-weight: 600;">${cls.teacherName}</span>
-                    </td>`;
+                    const bg = cls.doublePeriod ? 'background:#dcfce7;' : '';
+                    html += `<td class="semester-col" data-semester="${semester}" 
+              onclick="editCell('${semester}', ${d}, ${p})" 
+              style="cursor:pointer; font-size:10px; padding:6px; ${bg}">
+        <strong style="display:block; margin-bottom:2px; color:#1e40af; font-size:9px;">${cls.subjectName}</strong>
+        <span style="font-size:8px; color:#059669; font-weight:600;">${cls.teacherName}</span>
+    </td>`;
                 } else {
-                    html += `<td class="semester-col" data-semester="${semester}" onclick="editCell('${semester}', ${d}, ${p})" style="color: #9ca3af; font-size: 9px; cursor: pointer; text-align: center;">Free</td>`;
+                    html += `<td class="semester-col" data-semester="${semester}" onclick="editCell('${semester}', ${d}, ${p})" style="color: #9ca3af; font-size: 9px; cursor: pointer; text-align: center;">Doubt class</td>`;
                 }
             }
 
@@ -570,6 +645,7 @@ function renderRoutine() {
 
     html += '</tbody></table></div>';
     wrapper.innerHTML = html;
+    updatePrintViewDropdown()
 }
 
 function editCell(semester, day, period) {
