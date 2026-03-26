@@ -15,7 +15,7 @@ const FILLER_PREFIXES = [
 
 // Lab room IDs in your college
 const LAB_ROOM_IDS = ['CL-1', 'CL-2', 'CL-3', 'CL-3A', 'CL-3B', 'CL-4', 'CL-5',
-                      'LAB 1', 'LAB 2', 'LAB 3-1', 'LAB 3-B', 'LAB 4'];
+    'LAB 1', 'LAB 2', 'LAB 3-1', 'LAB 3-B', 'LAB 4'];
 
 function isLabRoom(roomId) {
     if (!roomId) return false;
@@ -199,7 +199,7 @@ function extractSubjectsFromRows(rows) {
             facultyName: entry.teacherName !== 'Unassigned' ? entry.teacherName : null,
             division: entry.section,
             roomNumber: entry.roomNumber || null,
-            isLabRoom: isLabRoom(entry.roomNumber)
+            isLabRoom: isLabSubject(entry.name)
         });
 
         if (entry.teacherName !== 'Unassigned') {

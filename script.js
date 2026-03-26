@@ -87,7 +87,24 @@ let state = {
     days: 5, periodsPerDay: 7, history: [],
     selectedCourse: '', selectedSemester: '', printView: 'all'
 };
-
+const rooms = [
+    "R-123",
+    "R-124",
+    "R-138",
+    "R-223",
+    "R-228",
+    "R-301",
+    "R-302",
+    "R-303",
+    "R-304",
+    "DE2 Room"
+]
+const labs = ["CL-1",
+    "CL-2A",
+    "CL-3A",
+    "CL-3B",
+    "CL-4",
+    "CL-5"]
 const dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const semesterOrder = ['Semester I', 'Semester III', 'Semester V'];
 
@@ -438,112 +455,136 @@ function generateRoutineLogic() {
     setTimeout(() => {
         const days = state.days;
         const periods = state.periodsPerDay;
-        const totalSlots = days * periods;
 
+        // 🔥 GLOBAL ROOM TRACKER (shared across ALL semesters)
+        const globalRoomUsage = Array(days)
+            .fill(null)
+            .map(() => Array(periods).fill(null).map(() => new Set()));
+
+        // Group subjects by semester
         const subjectsBySemester = {};
         state.subjects.forEach(subject => {
-            if (!subjectsBySemester[subject.semester])
+            if (!subjectsBySemester[subject.semester]) {
                 subjectsBySemester[subject.semester] = [];
+            }
             subjectsBySemester[subject.semester].push(subject);
         });
 
+        // 🧠 INIT EMPTY ROUTINES
         state.routines = {};
-        let allSuccess = true;
-
         Object.keys(subjectsBySemester).forEach(semester => {
-            const semesterSubjects = subjectsBySemester[semester];
-            const totalRequired = semesterSubjects.reduce((sum, s) => sum + s.classes, 0);
+            state.routines[semester] = Array(days)
+                .fill(null)
+                .map(() => Array(periods).fill(null));
 
-            if (totalRequired > totalSlots - days) {
-                allSuccess = false;
-                Swal.fire('Error', `${semester}: Total required classes (${totalRequired}) exceed available slots`, 'error');
-                return;
-            }
-
-            // Build class pool
-            const classPool = [];
-            semesterSubjects.forEach(subject => {
-                for (let i = 0; i < subject.classes; i++) {
-                    const teacher = state.teachers.find(t => t.id === subject.facultyId);
-                    classPool.push({
-                        subjectId: subject.id,
-                        subjectName: subject.name,
-                        subjectCode: subject.code,
-                        teacherId: teacher ? teacher.id : null,
-                        teacherName: teacher ? teacher.name : 'Unassigned',
-                        division: teacher ? teacher.division : null,
-                        semester: semester,
-                        roomNumber: subject.roomNumber || null,
-                        isLabRoom: subject.isLabRoom || false,
-                        regularRoom: subject.regularRoom || null
-                    });
-                }
-            });
-
-            shuffleArray(classPool);
-
-            // ── KEY FIX: distribute evenly across days ──────────────────
-            // Build a list of (day, period) slots sorted so we visit
-            // each day once before revisiting — round-robin by day index
-            const orderedSlots = [];
-            for (let p = 0; p < periods; p++) {
-                for (let d = 0; d < days; d++) {
-                    if (p === 3) continue; // skip lunch period
-                    orderedSlots.push([d, p]);
-                }
-            }
-            // orderedSlots is now: [d0p0, d1p0, d2p0...d5p0, d0p1, d1p1...]
-            // This ensures every day gets a class before any day gets a second one
-
-            const routine = Array(days).fill(null).map(() => Array(periods).fill(null));
-
-            // Set lunch for all days
+            // lunch
             for (let d = 0; d < days; d++) {
-                routine[d][3] = { lunch: true };
+                state.routines[semester][d][3] = { lunch: true };
             }
-
-            const teacherLastDay = {}; // track which day teacher last taught to avoid same-day conflicts
-
-            let classIndex = 0;
-            for (const [day, period] of orderedSlots) {
-                if (classIndex >= classPool.length) break;
-
-                let selectedClass = classPool[classIndex];
-                let attempts = 0;
-
-                // Try to avoid same teacher back-to-back on same day
-                while (attempts < 5 && selectedClass.teacherId) {
-                    const key = `${selectedClass.teacherId}_${day}`;
-                    const lastPeriod = teacherLastDay[key];
-                    if (lastPeriod !== undefined && lastPeriod === period - 1) {
-                        const altIndex = classIndex + 1 + Math.floor(Math.random() * (classPool.length - classIndex - 1));
-                        if (altIndex < classPool.length) {
-                            [classPool[classIndex], classPool[altIndex]] = [classPool[altIndex], classPool[classIndex]];
-                            selectedClass = classPool[classIndex];
-                        }
-                    } else break;
-                    attempts++;
-                }
-
-                routine[day][period] = selectedClass;
-                if (selectedClass.teacherId) {
-                    teacherLastDay[`${selectedClass.teacherId}_${day}`] = period;
-                }
-                classIndex++;
-            }
-
-            state.routines[semester] = routine;
         });
 
-        if (allSuccess) {
-            renderRoutine();
-            updateSummary();
-            showLoader(false);
-            Swal.fire('Success!', 'Routines generated for all semesters successfully', 'success');
-        } else {
-            showLoader(false);
+        // 🔥 GLOBAL CLASS POOL (ALL semesters together)
+        const globalClassPool = [];
+
+        state.subjects.forEach(subject => {
+            const teacher = state.teachers.find(t => t.id === subject.facultyId);
+
+            for (let i = 0; i < subject.classes; i++) {
+                globalClassPool.push({
+                    subjectId: subject.id,
+                    subjectName: subject.name,
+                    subjectCode: subject.code,
+                    teacherId: teacher ? teacher.id : null,
+                    teacherName: teacher ? teacher.name : 'Unassigned',
+                    division: teacher ? teacher.division : null,
+                    semester: subject.semester,
+                    isLabRoom: subject.isLabRoom || false,
+                    doublePeriod: subject.doublePeriod || false,
+                    roomNumber: null
+                });
+            }
+        });
+
+        shuffleArray(globalClassPool);
+
+        // 🧠 SLOT ORDER (balanced distribution)
+        const orderedSlots = [];
+        for (let p = 0; p < periods; p++) {
+            if (p === 3) continue; // lunch
+            for (let d = 0; d < days; d++) {
+                orderedSlots.push([d, p]);
+            }
         }
-    }, 1000);
+
+        const teacherLastPeriod = {};
+        let index = 0;
+
+        // 🔥 MAIN ASSIGNMENT LOOP
+        for (const [day, period] of orderedSlots) {
+            if (index >= globalClassPool.length) break;
+
+            let cls = globalClassPool[index];
+            let attempts = 0;
+
+            // 🚫 avoid same teacher back-to-back
+            while (attempts < 5 && cls.teacherId) {
+                const key = `${cls.teacherId}_${day}`;
+                if (teacherLastPeriod[key] === period - 1) {
+                    const altIndex = index + 1 + Math.floor(Math.random() * (globalClassPool.length - index - 1));
+                    if (altIndex < globalClassPool.length) {
+                        [globalClassPool[index], globalClassPool[altIndex]] =
+                            [globalClassPool[altIndex], globalClassPool[index]];
+                        cls = globalClassPool[index];
+                    }
+                } else break;
+                attempts++;
+            }
+
+            const sem = cls.semester;
+
+            // skip if slot already filled (important for fairness)
+            if (state.routines[sem][day][period] !== null) continue;
+
+            const roomPool = cls.isLabRoom ? labs : rooms;
+            let assignedRoom = null;
+
+            for (let room of roomPool) {
+                if (!globalRoomUsage[day][period].has(room)) {
+                    assignedRoom = room;
+                    break;
+                }
+            }
+
+            // ❌ If no room → skip (don’t assign wrong)
+            if (!assignedRoom) {
+                console.warn("NO ROOM AVAILABLE at", day, period);
+                continue;
+            }
+
+            // ✅ mark room usage
+            globalRoomUsage[day][period].add(assignedRoom);
+
+            cls.roomNumber = assignedRoom;
+            state.routines[sem][day][period] = cls;
+
+            if (cls.teacherId) {
+                teacherLastPeriod[`${cls.teacherId}_${day}`] = period;
+            }
+
+            index++;
+        }
+
+        renderRoutine();
+        updateSummary();
+        showLoader(false);
+
+        Swal.fire(
+            'Success!',
+            'Routine generated with ZERO room conflicts 🎯',
+            'success'
+        );
+
+    }, 500);
 }
 
 function shuffleArray(array) {
@@ -624,23 +665,71 @@ function renderRoutine() {
 
                 // 🍱 LUNCH
                 if (cls && cls.lunch) {
-                    html += `<td class="lunch-period semester-col" data-semester="${semester}" style="background: #fef3c7; color: #92400e; font-weight: 700; font-size: 9px; text-align: center;">LUNCH</td>`;
-                } else if (cls && cls.continued) {
-                    // 2nd period of a double-period lab — show continuation
-                    html += `<td class="semester-col" data-semester="${semester}" 
-              style="background: #dcfce7; font-size: 9px; text-align:center; color:#166534; font-style:italic;">
-              ↑ continued class
-             </td>`;
-                } else if (cls) {
-                    const bg = cls.doublePeriod ? 'background:#dcfce7;' : '';
-                    html += `<td class="semester-col" data-semester="${semester}" 
-              onclick="editCell('${semester}', ${d}, ${p})" 
-              style="cursor:pointer; font-size:10px; padding:6px; ${bg}">
-        <strong style="display:block; margin-bottom:2px; color:#1e40af; font-size:9px;">${cls.subjectName}</strong>
-        <span style="font-size:8px; color:#059669; font-weight:600;">${cls.teacherName}</span>
-    </td>`;
-                } else {
-                    html += `<td class="semester-col" data-semester="${semester}" onclick="editCell('${semester}', ${d}, ${p})" style="color: #9ca3af; font-size: 9px; cursor: pointer; text-align: center;">Doubt class</td>`;
+                    html += `
+        <td class="lunch-period semester-col" data-semester="${semester}"
+            style="background:#fef3c7; color:#92400e; font-weight:700; font-size:9px; text-align:center;">
+            LUNCH
+        </td>`;
+                }
+
+                // 📚 CLASS EXISTS
+                else if (cls) {
+
+                    // 🔥 DOUBLE PERIOD
+                    if (cls.doublePeriod) {
+                        html += `
+            <td class="semester-col" 
+                data-semester="${semester}" 
+                colspan="2"
+                onclick="editCell('${semester}', ${d}, ${p})" 
+                style="cursor:pointer; font-size:10px; padding:6px; background:#dcfce7;">
+                
+                <strong style="display:block; margin-bottom:2px; color:#1e40af; font-size:9px;">
+                    ${cls.subjectName}
+                </strong>
+                <span style="font-size:8px; color:#059669; font-weight:600;">
+    ${cls.teacherName}
+</span>
+<br>
+<span style="font-size:8px; color:#b45309; font-weight:700;">
+    📍 ${cls.roomNumber || 'No Room'}
+</span>
+            </td>`;
+
+                        p++; // ✅ skip next column
+                    }
+
+                    // ✅ SINGLE PERIOD (YOU WERE MISSING THIS)
+                    else {
+                        html += `
+            <td class="semester-col" 
+                data-semester="${semester}" 
+                onclick="editCell('${semester}', ${d}, ${p})" 
+                style="cursor:pointer; font-size:10px; padding:6px;">
+                
+                <strong style="display:block; margin-bottom:2px; color:#1e40af; font-size:9px;">
+                    ${cls.subjectName}
+                </strong>
+                <span style="font-size:8px; color:#059669; font-weight:600;">
+    ${cls.teacherName}
+</span>
+<br>
+<span style="font-size:8px; color:#b45309; font-weight:700;">
+    📍 ${cls.roomNumber || 'No Room'}
+</span>
+            </td>`;
+                    }
+                }
+
+                // ❓ EMPTY SLOT
+                else {
+                    html += `
+        <td class="semester-col" 
+            data-semester="${semester}" 
+            onclick="editCell('${semester}', ${d}, ${p})"
+            style="color:#9ca3af; font-size:9px; cursor:pointer; text-align:center;">
+            Doubt class
+        </td>`;
                 }
             }
 
@@ -936,441 +1025,6 @@ function showFacultyScheduleOptions() {
     });
 }
 
-// Generate Faculty Schedule
-function generateFacultySchedule(faculty) {
-    console.log('Generating schedule for:', faculty); // Debug
-
-    showLoader(true);
-
-    setTimeout(() => {
-        // Collect all classes for this faculty
-        const facultySchedule = {};
-        let totalClasses = 0;
-
-        Object.keys(state.routines).forEach(semester => {
-            const routine = state.routines[semester];
-
-            for (let d = 0; d < state.days; d++) {
-                for (let p = 0; p < state.periodsPerDay; p++) {
-                    const cls = routine[d][p];
-
-                    // Check if this class belongs to the selected faculty
-                    if (cls && !cls.lunch &&
-                        cls.teacherName === faculty.name &&
-                        cls.division === faculty.division) {
-
-                        // Initialize semester schedule if not exists
-                        if (!facultySchedule[semester]) {
-                            facultySchedule[semester] = Array(state.days)
-                                .fill(null)
-                                .map(() => Array(state.periodsPerDay).fill(null));
-                        }
-
-                        facultySchedule[semester][d][p] = cls;
-                        totalClasses++;
-                    }
-                }
-            }
-        });
-
-        console.log('Faculty Schedule:', facultySchedule); // Debug
-        console.log('Total Classes:', totalClasses); // Debug
-
-        if (totalClasses === 0) {
-            showLoader(false);
-            Swal.fire('No Classes', `${faculty.name} has no classes assigned in the generated routine.`, 'info');
-            return;
-        }
-
-        // Generate HTML for the report
-        let html = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${faculty.name} - Teaching Schedule</title>
-  <style>
-    * { 
-      margin: 0; 
-      padding: 0; 
-      box-sizing: border-box; 
-    }
-    
-    body { 
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      padding: 30px; 
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      min-height: 100vh;
-    }
-    
-    .container {
-      max-width: 1200px;
-      margin: 0 auto;
-      background: white;
-      border-radius: 16px;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-      overflow: hidden;
-    }
-    
-    .header { 
-      background: linear-gradient(135deg, #1e40af, #2563eb); 
-      color: white; 
-      padding: 40px; 
-      text-align: center;
-    }
-    
-    .header h1 { 
-      font-size: 32px; 
-      margin-bottom: 10px; 
-      font-weight: 700;
-    }
-    
-    .header p { 
-      font-size: 18px; 
-      opacity: 0.95; 
-    }
-    
-    .content {
-      padding: 30px;
-    }
-    
-    .info-box { 
-      background: #f0f9ff; 
-      padding: 25px; 
-      border-radius: 12px; 
-      margin-bottom: 30px; 
-      border-left: 5px solid #2563eb;
-    }
-    
-    .info-grid { 
-      display: grid; 
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); 
-      gap: 20px; 
-      margin-top: 15px;
-    }
-    
-    .info-item { 
-      text-align: center;
-    }
-    
-    .info-label { 
-      font-size: 12px; 
-      color: #6b7280; 
-      text-transform: uppercase; 
-      font-weight: 600; 
-      margin-bottom: 8px; 
-      letter-spacing: 1px;
-    }
-    
-    .info-value { 
-      font-size: 28px; 
-      color: #1e40af; 
-      font-weight: 700; 
-    }
-    
-    .subjects-list {
-      background: white;
-      padding: 20px;
-      border-radius: 12px;
-      margin-bottom: 30px;
-      border: 2px solid #e5e7eb;
-    }
-    
-    .subjects-list h3 {
-      color: #1e40af;
-      margin-bottom: 15px;
-      font-size: 20px;
-    }
-    
-    .subjects-list ul {
-      list-style: none;
-      padding: 0;
-    }
-    
-    .subjects-list li {
-      padding: 12px;
-      background: #f9fafb;
-      margin-bottom: 10px;
-      border-radius: 8px;
-      border-left: 4px solid #10b981;
-      font-size: 14px;
-    }
-    
-    .semester-section { 
-      background: white; 
-      padding: 25px; 
-      border-radius: 12px; 
-      margin-bottom: 30px; 
-      box-shadow: 0 2px 8px rgba(0,0,0,0.1); 
-    }
-    
-    .semester-title { 
-      font-size: 22px; 
-      color: #1e40af; 
-      margin-bottom: 20px; 
-      padding-bottom: 12px; 
-      border-bottom: 3px solid #2563eb; 
-      font-weight: 700;
-    }
-    
-    table { 
-      width: 100%; 
-      border-collapse: collapse; 
-      margin-top: 15px; 
-      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-    }
-    
-    th, td { 
-      border: 1px solid #cbd5e1; 
-      padding: 14px 10px; 
-      text-align: center; 
-      font-size: 13px;
-    }
-    
-    th { 
-      background: #1e40af; 
-      color: white; 
-      font-weight: 600; 
-      text-transform: uppercase; 
-      letter-spacing: 0.5px;
-    }
-    
-    td { 
-      background: white; 
-    }
-    
-    .class-cell { 
-      background: #dbeafe !important; 
-      font-weight: 600; 
-      color: #1e40af; 
-    }
-    
-    .class-cell strong {
-      display: block;
-      margin-bottom: 4px;
-      font-size: 14px;
-    }
-    
-    .class-cell small {
-      color: #6b7280;
-      font-size: 11px;
-    }
-    
-    .lunch-cell { 
-      background: #fef3c7 !important; 
-      color: #92400e; 
-      font-weight: 700; 
-      font-size: 14px;
-    }
-    
-    .free-cell { 
-      background: #f1f5f9 !important; 
-      color: #94a3b8; 
-      font-style: italic;
-    }
-    
-    .time-slot { 
-      font-size: 10px; 
-      color: #6b7280; 
-      display: block; 
-      margin-bottom: 6px; 
-      font-weight: 500;
-    }
-    
-    .footer { 
-      text-align: center; 
-      margin-top: 40px; 
-      padding: 25px; 
-      color: #6b7280; 
-      font-size: 14px; 
-      background: #f9fafb;
-      border-radius: 12px;
-    }
-    
-    .print-btn {
-      background: linear-gradient(135deg, #2563eb, #1e40af);
-      color: white;
-      padding: 15px 40px;
-      border: none;
-      border-radius: 10px;
-      font-size: 16px;
-      cursor: pointer;
-      font-weight: 600;
-      box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
-      transition: all 0.3s ease;
-      margin-top: 20px;
-    }
-    
-    .print-btn:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 6px 20px rgba(37, 99, 235, 0.4);
-    }
-    
-    @media print { 
-      body { 
-        background: white; 
-        padding: 0;
-      } 
-      .no-print { 
-        display: none !important; 
-      }
-      .container {
-        box-shadow: none;
-      }
-    }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <div class="header">
-      <h1>🎓 Teaching Schedule Report</h1>
-      <p>Faculty: <strong>${faculty.name}</strong> | Division: <strong>${faculty.division}</strong></p>
-    </div>
-
-    <div class="content">
-      <div class="info-box">
-        <h3 style="color: #1e40af; margin-bottom: 15px; font-size: 18px;">📊 Summary</h3>
-        <div class="info-grid">
-          <div class="info-item">
-            <div class="info-label">Faculty Name</div>
-            <div class="info-value" style="font-size: 20px;">${faculty.name}</div>
-          </div>
-          <div class="info-item">
-            <div class="info-label">Division</div>
-            <div class="info-value" style="font-size: 20px;">${faculty.division}</div>
-          </div>
-          <div class="info-item">
-            <div class="info-label">Subjects Teaching</div>
-            <div class="info-value">${faculty.subjects.length}</div>
-          </div>
-          <div class="info-item">
-            <div class="info-label">Total Classes/Week</div>
-            <div class="info-value">${totalClasses}</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="subjects-list">
-        <h3>📚 Assigned Subjects</h3>
-        <ul>`;
-
-        faculty.subjects.forEach(subject => {
-            html += `
-          <li><strong>${subject.name}</strong> (${subject.code}) - ${subject.semester}</li>`;
-        });
-
-        html += `
-        </ul>
-      </div>`;
-
-        // Generate schedule tables for each semester
-        const sortedSemesters = Object.keys(facultySchedule).sort((a, b) => {
-            return semesterOrder.indexOf(a) - semesterOrder.indexOf(b);
-        });
-
-        sortedSemesters.forEach(semester => {
-            const routine = facultySchedule[semester];
-
-            html += `
-      <div class="semester-section">
-        <div class="semester-title">📅 ${semester}</div>
-        <table>
-          <thead>
-            <tr>
-              <th>Day / Time</th>`;
-
-            for (let p = 1; p <= state.periodsPerDay; p++) {
-                if (p === 4) {
-                    html += `<th>LUNCH<br><span style="font-size:10px; font-weight:400">${timeSlots[p - 1]}</span></th>`;
-                } else {
-                    html += `<th>Period ${p}<br><span style="font-size:10px; font-weight:400">${timeSlots[p - 1]}</span></th>`;
-                }
-            }
-
-            html += `
-            </tr>
-          </thead>
-          <tbody>`;
-
-            for (let d = 0; d < state.days; d++) {
-                html += `
-            <tr>
-              <th style="background: #eff6ff; color: #1e40af;">${dayNames[d]}</th>`;
-
-                for (let p = 0; p < state.periodsPerDay; p++) {
-                    if (p === 3) {
-                        html += `<td class="lunch-cell">🍽️ LUNCH</td>`;
-                    } else if (routine[d] && routine[d][p]) {
-                        const cls = routine[d][p];
-                        html += `
-              <td class="class-cell">
-                <span class="time-slot">${timeSlots[p]}</span>
-                <strong>${cls.subjectName}</strong>
-                <small>${cls.subjectCode}</small>
-              </td>`;
-                    } else {
-                        html += `
-              <td class="free-cell">
-                <span class="time-slot">${timeSlots[p]}</span>
-                Free
-              </td>`;
-                    }
-                }
-
-                html += `
-            </tr>`;
-            }
-
-            html += `
-          </tbody>
-        </table>
-      </div>`;
-        });
-
-        html += `
-      <div class="footer">
-        <p><strong>Lecture Map</strong> - Professional College Routine Management System</p>
-        <p style="margin-top: 8px;">Generated on ${new Date().toLocaleString('en-IN', { dateStyle: 'full', timeStyle: 'short' })} | TCEA Major Project</p>
-      </div>
-      
-      <div style="text-align: center; padding-bottom: 30px;" class="no-print">
-        <button onclick="window.print()" class="print-btn">
-          🖨️ Print This Schedule
-        </button>
-      </div>
-    </div>
-  </div>
-</body>
-</html>`;
-
-        // Open in new window
-        const newWindow = window.open('', '_blank', 'width=1200,height=800');
-
-        if (newWindow) {
-            newWindow.document.write(html);
-            newWindow.document.close();
-
-            showLoader(false);
-
-            Swal.fire({
-                icon: 'success',
-                title: 'Schedule Generated!',
-                html: `<strong>${faculty.name}'s</strong> teaching schedule has been opened in a new window.<br><br>Total Classes: <strong>${totalClasses}</strong>`,
-                confirmButtonText: 'OK',
-                timer: 4000
-            });
-        } else {
-            showLoader(false);
-            Swal.fire({
-                icon: 'warning',
-                title: 'Pop-up Blocked',
-                html: 'Please allow pop-ups for this site to view the faculty schedule.<br><br><small>Look for a pop-up blocker icon in your browser address bar.</small>',
-                confirmButtonText: 'OK'
-            });
-        }
-    }, 500);
-}
-
 // FIXED: Generate Faculty Schedule
 function generateFacultySchedule(faculty) {
     showLoader(true);
@@ -1479,7 +1133,6 @@ function generateFacultySchedule(faculty) {
             }
 
             html += `</tr></thead><tbody>`;
-
             for (let d = 0; d < state.days; d++) {
                 html += `<tr><th>${dayNames[d]}</th>`;
                 for (let p = 0; p < state.periodsPerDay; p++) {
@@ -1487,6 +1140,7 @@ function generateFacultySchedule(faculty) {
                         html += `<td class="lunch-cell">🍽️ LUNCH</td>`;
                     } else if (routine[d] && routine[d][p]) {
                         const cls = routine[d][p];
+                        console.log(cls)
                         html += `<td class="class-cell">
               <span class="time-slot">${timeSlots[p]}</span>
               <strong>${cls.subjectName}</strong><br>
