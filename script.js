@@ -618,24 +618,65 @@ function renderRoutine() {
             for (let p = 0; p < periods; p++) {
                 const cls = routine[d][p];
 
+                // 🍱 LUNCH
                 if (cls && cls.lunch) {
-                    html += `<td class="lunch-period semester-col" data-semester="${semester}" style="background: #fef3c7; color: #92400e; font-weight: 700; font-size: 9px; text-align: center;">LUNCH</td>`;
-                } else if (cls && cls.continued) {
-                    // 2nd period of a double-period lab — show continuation
-                    html += `<td class="semester-col" data-semester="${semester}" 
-              style="background: #dcfce7; font-size: 9px; text-align:center; color:#166534; font-style:italic;">
-              ↑ continued class 
-             </td>`;
-                } else if (cls) {
-                    const bg = cls.doublePeriod ? 'background:#dcfce7;' : '';
-                    html += `<td class="semester-col" data-semester="${semester}" 
-              onclick="editCell('${semester}', ${d}, ${p})" 
-              style="cursor:pointer; font-size:10px; padding:6px; ${bg}">
-        <strong style="display:block; margin-bottom:2px; color:#1e40af; font-size:9px;">${cls.subjectName}</strong>
-        <span style="font-size:8px; color:#059669; font-weight:600;">${cls.teacherName}</span>
-    </td>`;
-                } else {
-                    html += `<td class="semester-col" data-semester="${semester}" onclick="editCell('${semester}', ${d}, ${p})" style="color: #9ca3af; font-size: 9px; cursor: pointer; text-align: center;">Doubt class</td>`;
+                    html += `
+        <td class="lunch-period semester-col" data-semester="${semester}"
+            style="background:#fef3c7; color:#92400e; font-weight:700; font-size:9px; text-align:center;">
+            LUNCH
+        </td>`;
+                }
+
+                // 📚 CLASS EXISTS
+                else if (cls) {
+
+                    // 🔥 DOUBLE PERIOD
+                    if (cls.doublePeriod) {
+                        html += `
+            <td class="semester-col" 
+                data-semester="${semester}" 
+                colspan="2"
+                onclick="editCell('${semester}', ${d}, ${p})" 
+                style="cursor:pointer; font-size:10px; padding:6px; background:#dcfce7;">
+                
+                <strong style="display:block; margin-bottom:2px; color:#1e40af; font-size:9px;">
+                    ${cls.subjectName}
+                </strong>
+                <span style="font-size:8px; color:#059669; font-weight:600;">
+                    ${cls.teacherName}
+                </span>
+            </td>`;
+
+                        p++; // ✅ skip next column
+                    }
+
+                    // ✅ SINGLE PERIOD (YOU WERE MISSING THIS)
+                    else {
+                        html += `
+            <td class="semester-col" 
+                data-semester="${semester}" 
+                onclick="editCell('${semester}', ${d}, ${p})" 
+                style="cursor:pointer; font-size:10px; padding:6px;">
+                
+                <strong style="display:block; margin-bottom:2px; color:#1e40af; font-size:9px;">
+                    ${cls.subjectName}
+                </strong>
+                <span style="font-size:8px; color:#059669; font-weight:600;">
+                    ${cls.teacherName}
+                </span>
+            </td>`;
+                    }
+                }
+
+                // ❓ EMPTY SLOT
+                else {
+                    html += `
+        <td class="semester-col" 
+            data-semester="${semester}" 
+            onclick="editCell('${semester}', ${d}, ${p})"
+            style="color:#9ca3af; font-size:9px; cursor:pointer; text-align:center;">
+            Doubt class
+        </td>`;
                 }
             }
 
