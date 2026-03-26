@@ -5,12 +5,25 @@
 //  generateRoutineLogic() can run with double-period support.
 // ============================================================
 
+//CHANGING HAVE DONED THEIR//
 const EXCEL_COL_TO_PERIOD = { 3: 0, 4: 1, 5: 2, 6: 3, 7: 4, 8: 5, 9: 6 };
 const EXCEL_DAY_NAMES = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
 const FILLER_PREFIXES = [
     'library', 'sports', 'extra class', 'lunch', 't&p session', 'project work',
     'seminar', 'additional coding', 'communication skills', 'mathematics-i (lbc'
 ];
+
+// Lab room IDs in your college
+const LAB_ROOM_IDS = ['CL-1', 'CL-2', 'CL-3', 'CL-3A', 'CL-3B', 'CL-4', 'CL-5',
+                      'LAB 1', 'LAB 2', 'LAB 3-1', 'LAB 3-B', 'LAB 4'];
+
+function isLabRoom(roomId) {
+    if (!roomId) return false;
+    const r = roomId.toUpperCase().trim();
+    return LAB_ROOM_IDS.some(l => r.includes(l.toUpperCase()));
+}
+
+//CHANGING HAVE DONED THEIR//
 
 // ── Main entry point ──────────────────────────────────────────────────────────
 
@@ -76,8 +89,6 @@ function importExcelRoutine(event) {
     reader.readAsArrayBuffer(file);
 }
 
-// ── Core extraction ───────────────────────────────────────────────────────────
-
 function extractSubjectsFromRows(rows) {
     const subjectMap = {};  // key = "CODE__SECTION"
     let currentDayIndex = -1;
@@ -99,14 +110,10 @@ function extractSubjectsFromRows(rows) {
         if (!section || typeof section !== 'string' || !section.trim()) continue;
         const sectionKey = section.trim();
 
-        // Consecutive column pairs that can form a double period
-        // Only pairs that are truly adjacent periods (no lunch between them)
         const adjacentPairs = [[3, 4], [4, 5], [7, 8], [8, 9]];
-
-        // Track which cols were already counted as part of a double period
         const countedAsDouble = new Set();
 
-        // ── Pass 1: detect double-period labs (value in colA, null in colB) ──
+        // ── Pass 1: detect double-period labs ──
         for (const [colA, colB] of adjacentPairs) {
             const valA = row[colA];
             const valB = row[colB];
@@ -125,21 +132,25 @@ function extractSubjectsFromRows(rows) {
                     subjectMap[mapKey] = {
                         name: parsed.name, code: parsed.code,
                         section: sectionKey, teacherName: parsed.teacherName,
-                        count: 0, doublePeriod: false
+                        count: 0, doublePeriod: false,
+                        roomNumber: parsed.roomNumber || null
                     };
+                }
+                if (parsed.roomNumber && !subjectMap[mapKey].roomNumber) {
+                    subjectMap[mapKey].roomNumber = parsed.roomNumber;
                 }
                 subjectMap[mapKey].count++;
                 if (isLabSubject(parsed.name)) {
                     subjectMap[mapKey].doublePeriod = true;
                 }
                 countedAsDouble.add(colA);
-                countedAsDouble.add(colB); // mark the empty col too so we skip it
+                countedAsDouble.add(colB);
             }
         }
 
-        // ── Pass 2: single-period subjects (not part of a double-period) ──────
+        // ── Pass 2: single-period subjects ──
         for (const col of [3, 4, 5, 7, 8, 9]) {
-            if (countedAsDouble.has(col)) continue; // already counted above
+            if (countedAsDouble.has(col)) continue;
 
             const val = row[col];
             if (!val || typeof val !== 'string' || !val.trim()) continue;
@@ -152,14 +163,19 @@ function extractSubjectsFromRows(rows) {
                 subjectMap[mapKey] = {
                     name: parsed.name, code: parsed.code,
                     section: sectionKey, teacherName: parsed.teacherName,
-                    count: 0, doublePeriod: false
+                    count: 0, doublePeriod: false,
+                    roomNumber: parsed.roomNumber || null
                 };
+            }
+            if (parsed.roomNumber && !subjectMap[mapKey].roomNumber) {
+                subjectMap[mapKey].roomNumber = parsed.roomNumber;
             }
             subjectMap[mapKey].count++;
         }
-    }
 
-    // ── Build state.subjects and state.teachers ───────────────────────────────
+    } // ← THIS was the missing closing bracket for the for(row of rows) loop
+
+    // ── Build state.subjects and state.teachers ──
     const subjects = [];
     const teachers = [];
     let idCounter = Date.now();
@@ -181,7 +197,9 @@ function extractSubjectsFromRows(rows) {
             doublePeriod: entry.doublePeriod,
             facultyId: entry.teacherName !== 'Unassigned' ? teacherId : null,
             facultyName: entry.teacherName !== 'Unassigned' ? entry.teacherName : null,
-            division: entry.section
+            division: entry.section,
+            roomNumber: entry.roomNumber || null,
+            isLabRoom: isLabRoom(entry.roomNumber)
         });
 
         if (entry.teacherName !== 'Unassigned') {
@@ -201,6 +219,7 @@ function extractSubjectsFromRows(rows) {
 
 // ── Cell parser ───────────────────────────────────────────────────────────────
 
+//CHANGING HAVE DONED THEIR//
 function parseCellText(text) {
     if (!text || typeof text !== 'string') return null;
     const trimmed = text.trim();
@@ -227,8 +246,16 @@ function parseCellText(text) {
         break;
     }
 
-    return { name, code, teacherName };
+    // Extract room number — looks for [R-303], [CL-1], [CL-4] etc.
+    let roomNumber = null;
+    const roomMatch = trimmed.match(/\[([^\]]+)\]/);
+    if (roomMatch) {
+        roomNumber = roomMatch[1].trim();
+    }
+
+    return { name, code, teacherName, roomNumber };
 }
+//CHANING HAVE DONED THEIR//
 
 function isLabSubject(name) {
     const n = name.toLowerCase();
@@ -295,7 +322,10 @@ function generateRoutineLogic() {
                     teacherName: teacher ? teacher.name : 'Unassigned',
                     division: teacher ? teacher.division : null,
                     semester: semester,
-                    doublePeriod: !!subject.doublePeriod
+                    doublePeriod: !!subject.doublePeriod,
+                    roomNumber: subject.roomNumber || null,
+                    isLabRoom: subject.isLabRoom || false,
+                    regularRoom: subject.regularRoom || null
                 };
                 for (let i = 0; i < subject.classes; i++) {
                     if (subject.doublePeriod) doublePool.push({ ...entry });
@@ -430,4 +460,74 @@ function exportToExcel() {
     a.click();
     URL.revokeObjectURL(url);
     Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Excel file exported!', showConfirmButton: false, timer: 2500 });
+}
+
+// ── AUTO ROOM FILL: When a section goes to lab, free their room for others ──
+
+function autoFillFreedRooms() {
+    if (Object.keys(state.routines).length === 0) return;
+
+    const days = state.days;
+    const periods = state.periodsPerDay;
+
+    // Step 1: For each day+period, find which rooms are being used in labs
+    // and which regular rooms are now FREE because that section is in lab
+    for (let d = 0; d < days; d++) {
+        for (let p = 0; p < periods; p++) {
+            if (p === 3) continue; // skip lunch
+
+            // Collect all sections that are IN A LAB this period
+            const sectionsInLab = [];
+            Object.keys(state.routines).forEach(semester => {
+                const cls = state.routines[semester][d][p];
+                if (cls && !cls.lunch && cls.isLabRoom) {
+                    sectionsInLab.push({
+                        semester,
+                        freedRoom: cls.regularRoom || null, // their normal classroom
+                        cls
+                    });
+                }
+            });
+
+            if (sectionsInLab.length === 0) continue;
+
+            // Step 2: Find empty (Doubt class) slots in OTHER sections this period
+            // and assign the freed room to them
+            Object.keys(state.routines).forEach(semester => {
+                const cls = state.routines[semester][d][p];
+
+                // Only fill empty slots (null = Doubt class)
+                if (cls !== null) return;
+
+                // Find a freed room to assign
+                const freedEntry = sectionsInLab.find(entry => entry.semester !== semester);
+                if (!freedEntry || !freedEntry.freedRoom) return;
+
+                // Assign freed room info to this empty slot
+                state.routines[semester][d][p] = {
+                    subjectName: 'Self Study',
+                    subjectCode: 'SS',
+                    teacherName: 'Available',
+                    teacherId: null,
+                    division: null,
+                    semester: semester,
+                    roomNumber: freedEntry.freedRoom,
+                    isLabRoom: false,
+                    doublePeriod: false,
+                    freedFrom: freedEntry.semester, // which section freed this room
+                    autoFilled: true // mark as auto-filled
+                };
+            });
+        }
+    }
+
+    renderRoutine();
+    Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'success',
+        title: 'Freed rooms auto-assigned!',
+        showConfirmButton: false,
+        timer: 3000
+    });
 }

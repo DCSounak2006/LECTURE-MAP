@@ -236,6 +236,7 @@ function refreshSemesterDropdown() {
 function attachEventListeners() {
     document.getElementById('addSubject').addEventListener('click', addSubject);
     document.getElementById('autoGenerate').addEventListener('click', autoGenerateRoutine);
+    document.getElementById('autoFillRooms').addEventListener('click', autoFillFreedRooms);
     document.getElementById('clearRoutine').addEventListener('click', clearRoutine);
     document.getElementById('printRoutine').addEventListener('click', printRoutine);
     document.getElementById('exportJSON').addEventListener('click', exportJSON);
@@ -471,7 +472,10 @@ function generateRoutineLogic() {
                         teacherId: teacher ? teacher.id : null,
                         teacherName: teacher ? teacher.name : 'Unassigned',
                         division: teacher ? teacher.division : null,
-                        semester: semester
+                        semester: semester,
+                        roomNumber: subject.roomNumber || null,
+                        isLabRoom: subject.isLabRoom || false,
+                        regularRoom: subject.regularRoom || null
                     });
                 }
             });
@@ -627,15 +631,30 @@ function renderRoutine() {
               ↑ continued class
              </td>`;
                 } else if (cls) {
-                    const bg = cls.doublePeriod ? 'background:#dcfce7;' : '';
+                    const bg = cls.doublePeriod ? 'background:#dcfce7;' : cls.isLabRoom ? 'background:#fce7f3;' : '';
+                    const roomBadge = cls.roomNumber
+                        ? `<span style="display:inline-block; margin-top:3px; padding:1px 5px; border-radius:6px; background:#1e40af; color:white; font-size:7px; font-weight:700;">📍 ${cls.roomNumber}</span>`
+                        : `<span style="display:inline-block; margin-top:3px; padding:1px 5px; border-radius:6px; background:#e5e7eb; color:#6b7280; font-size:7px;">No Room</span>`;
                     html += `<td class="semester-col" data-semester="${semester}" 
               onclick="editCell('${semester}', ${d}, ${p})" 
               style="cursor:pointer; font-size:10px; padding:6px; ${bg}">
         <strong style="display:block; margin-bottom:2px; color:#1e40af; font-size:9px;">${cls.subjectName}</strong>
-        <span style="font-size:8px; color:#059669; font-weight:600;">${cls.teacherName}</span>
+        <span style="font-size:8px; color:#059669; font-weight:600;">${cls.teacherName}</span><br>
+        ${roomBadge}
     </td>`;
                 } else {
-                    html += `<td class="semester-col" data-semester="${semester}" onclick="editCell('${semester}', ${d}, ${p})" style="color: #9ca3af; font-size: 9px; cursor: pointer; text-align: center;">Doubt class</td>`;
+                    // Check if this was auto-filled with a freed room
+                    if (cls && cls.autoFilled) {
+                        html += `<td class="semester-col" data-semester="${semester}"
+                            onclick="editCell('${semester}', ${d}, ${p})"
+                            style="cursor:pointer; font-size:10px; padding:6px; background:#f0fdf4; border: 2px dashed #10b981;">
+                            <strong style="display:block; color:#065f46; font-size:9px;">📖 Self Study</strong>
+                            <span style="font-size:7px; color:#6b7280;">Room freed from ${cls.freedFrom}</span><br>
+                            <span style="display:inline-block; margin-top:3px; padding:1px 5px; border-radius:6px; background:#10b981; color:white; font-size:7px; font-weight:700;">📍 ${cls.roomNumber}</span>
+                        </td>`;
+                    } else {
+                        html += `<td class="semester-col" data-semester="${semester}" onclick="editCell('${semester}', ${d}, ${p})" style="color: #9ca3af; font-size: 9px; cursor: pointer; text-align: center;">Doubt class</td>`;
+                    }
                 }
             }
 
@@ -825,7 +844,7 @@ function exportCSV() {
             for (let p = 0; p < periods; p++) {
                 const cls = routine[d][p];
                 if (cls && cls.lunch) csv += ',LUNCH';
-                else if (cls) csv += `,"${cls.subjectName} - ${cls.teacherName}${cls.division ? ' (' + cls.division + ')' : ''}"`;
+                else if (cls) csv += `,"${cls.subjectName} - ${cls.teacherName}${cls.division ? ' (' + cls.division + ')' : ''}${cls.roomNumber ? ' [' + cls.roomNumber + ']' : ''}"`;
                 else csv += ',Free';
             }
             csv += '\n';
@@ -1485,7 +1504,8 @@ function generateFacultySchedule(faculty) {
                         html += `<td class="class-cell">
               <span class="time-slot">${timeSlots[p]}</span>
               <strong>${cls.subjectName}</strong><br>
-              <small>${cls.subjectCode}</small>
+              <small>${cls.subjectCode}</small><br>
+              ${cls.roomNumber ? `<span style="display:inline-block; margin-top:3px; padding:1px 6px; border-radius:6px; background:#1e40af; color:white; font-size:10px; font-weight:700;">📍 ${cls.roomNumber}</span>` : ''}
             </td>`;
                     } else {
                         html += `<td class="free-cell">
@@ -1548,7 +1568,7 @@ function exportToExcel() {
             for (let p = 0; p < state.periodsPerDay; p++) {
                 const cls = routine[d][p];
                 if (cls && cls.lunch) csv += ',LUNCH';
-                else if (cls) csv += `,"${cls.subjectName} (${cls.subjectCode}) - ${cls.teacherName}${cls.division ? ' [' + cls.division + ']' : ''}"`;
+                else if (cls) csv += `,"${cls.subjectName} (${cls.subjectCode}) - ${cls.teacherName}${cls.division ? ' [' + cls.division + ']' : ''}${cls.roomNumber ? ' | Room: ' + cls.roomNumber : ''}"`;
                 else csv += ',Free';
             }
             csv += '\n';

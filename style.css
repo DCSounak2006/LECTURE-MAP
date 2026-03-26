@@ -731,3 +731,72 @@ tbody tr:nth-child(even):hover {
     display: none !important;
   }
 }
+
+/* ── Room Number Badge Styles ── */
+.room-badge {
+  display: inline-block;
+  margin-top: 3px;
+  padding: 1px 5px;
+  border-radius: 6px;
+  background: #1e40af;
+  color: white;
+  font-size: 7px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+}
+
+.room-badge-empty {
+  display: inline-block;
+  margin-top: 3px;
+  padding: 1px 5px;
+  border-radius: 6px;
+  background: #e5e7eb;
+  color: #6b7280;
+  font-size: 7px;
+}
+
+.room-badge-lab {
+  display: inline-block;
+  margin-top: 3px;
+  padding: 1px 5px;
+  border-radius: 6px;
+  background: #7c3aed;
+  color: white;
+  font-size: 7px;
+  font-weight: 700;
+}
+
+.room-badge-freed {
+  display: inline-block;
+  margin-top: 3px;
+  padding: 1px 5px;
+  border-radius: 6px;
+  background: #10b981;
+  color: white;
+  font-size: 7px;
+  font-weight: 700;
+}
+
+/* Lab class cell highlight */
+#routineTable td.lab-cell {
+  background: #fce7f3 !important;
+  border-left: 3px solid #7c3aed !important;
+}
+
+/* Auto-filled freed room cell */
+#routineTable td.freed-cell {
+  background: #f0fdf4 !important;
+  border: 2px dashed #10b981 !important;
+}
+
+/* Print - show room numbers */
+@media print {
+  .room-badge,
+  .room-badge-lab,
+  .room-badge-freed {
+    background: #e5e7eb !important;
+    color: black !important;
+    border: 1px solid #9ca3af;
+    font-size: 6px;
+  }
+}
