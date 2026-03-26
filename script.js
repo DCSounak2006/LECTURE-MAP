@@ -624,7 +624,7 @@ function renderRoutine() {
                     // 2nd period of a double-period lab — show continuation
                     html += `<td class="semester-col" data-semester="${semester}" 
               style="background: #dcfce7; font-size: 9px; text-align:center; color:#166534; font-style:italic;">
-              ↑ continued class
+              ↑ continued class 
              </td>`;
                 } else if (cls) {
                     const bg = cls.doublePeriod ? 'background:#dcfce7;' : '';
