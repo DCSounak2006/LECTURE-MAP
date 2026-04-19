@@ -2,212 +2,213 @@
 <html lang="en">
 
 <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>Lecture Map</title>
-    <link rel="stylesheet" href="style.css" />
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Lecture Map</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 
 <body>
-    <!-- Loader -->
-    <div id="loader" class="loader-overlay" style="display:none;">
-        <div class="loader-spinner"></div>
-        <p style="color: white; margin-top: 20px; font-weight: 600;">Generating your routine...</p>
+  <!-- Loader -->
+  <div id="loader" class="loader-overlay" style="display:none;">
+    <div class="loader-spinner"></div>
+    <p style="color: white; margin-top: 20px; font-weight: 600;">Generating your routine...</p>
+  </div>
+
+  <div class="container">
+    <header class="animated-header">
+      <h1>
+        <img src="Logo.png" alt="Logo" style="height:80px;vertical-align:middle;margin-right:-15px;">
+        Lecture Map
+      </h1>
+      <div class="controls">
+        <button id="undoBtn" class="secondary" title="Undo last action">↶ Undo</button>
+        <button id="saveBtn">Save (Local)</button>
+        <button id="loadBtn" class="secondary">Load</button>
+        <button id="clearAllBtn" class="secondary">Reset All</button>
+      </div>
+    </header>
+
+    <!-- Summary Panel -->
+    <div class="card summary-card fade-in">
+      <h3 style="margin:0 0 16px 0;color:#1e40af;font-size:16px;">📊 Summary</h3>
+      <div class="summary-grid">
+        <div class="summary-item">
+          <div class="summary-label">Total Subjects</div>
+          <div class="summary-value" id="summarySubjects">0</div>
+        </div>
+        <div class="summary-item">
+          <div class="summary-label">Total Faculty</div>
+          <div class="summary-value" id="summaryTeachers">0</div>
+        </div>
+        <div class="summary-item">
+          <div class="summary-label">Classes/Week</div>
+          <div class="summary-value" id="summaryClasses">0</div>
+        </div>
+        <div class="summary-item">
+          <div class="summary-label">Routine Status</div>
+          <div class="summary-value" id="summaryStatus">Not Generated</div>
+        </div>
+      </div>
     </div>
 
-    <div class="container">
-        <header class="animated-header">
-            <h1><img src="Logo.png" alt="Logo" style="height: 80px; vertical-align: middle; margin-right: -15px;">
-                Lecture Map</h1>
-            <div class="controls">
-                <button id="undoBtn" class="secondary" title="Undo last action">↶ Undo</button>
-                <button id="saveBtn">Save (Local)</button>
-                <button id="loadBtn" class="secondary">Load</button>
-                <button id="clearAllBtn" class="secondary">Reset All</button>
-            </div>
-        </header>
+    <!-- Add Course Section -->
+    <div class="card fade-in" style="animation-delay:0.2s">
+      <h3 style="margin:0 0 20px 0;color:#1e40af;font-size:18px;">📚 Add Course</h3>
 
-        <!-- Data Summary Panel -->
-        <div class="card summary-card fade-in">
-            <h3 style="margin: 0 0 16px 0; color: #1e40af; font-size: 16px;">📊 Summary</h3>
-            <div class="summary-grid">
-                <div class="summary-item">
-                    <div class="summary-label">Total Subjects</div>
-                    <div class="summary-value" id="summarySubjects">0</div>
-                </div>
-                <div class="summary-item">
-                    <div class="summary-label">Total Faculty</div>
-                    <div class="summary-value" id="summaryTeachers">0</div>
-                </div>
-                <div class="summary-item">
-                    <div class="summary-label">Classes/Week</div>
-                    <div class="summary-value" id="summaryClasses">0</div>
-                </div>
-                <div class="summary-item">
-                    <div class="summary-label">Routine Status</div>
-                    <div class="summary-value" id="summaryStatus">Not Generated</div>
-                </div>
-            </div>
+      <div class="flex" style="margin-bottom:20px;flex-wrap:wrap;">
+        <div style="width:200px">
+          <label>Course</label>
+          <select id="courseSelect">
+            <option value="">Select Course</option>
+            <option value="diploma">Diploma</option>
+            <option value="btech">B.Tech</option>
+          </select>
         </div>
-
-        <!-- Single Page Layout -->
-        <div class="card fade-in" style="animation-delay: 0.2s">
-            <h3 style="margin: 0 0 20px 0; color: #1e40af; font-size: 18px;">📚 Add Course</h3>
-
-            <!-- Course Selection -->
-            <div class="flex" style="margin-bottom: 20px;">
-                <div style="width:200px">
-                    <label>Course</label>
-                    <select id="courseSelect">
-                        <option value="">Select Course</option>
-                        <option value="diploma">Diploma</option>
-                        <option value="btech">B.Tech</option>
-                    </select>
-                </div>
-                <div style="width:250px">
-                    <label>Semester</label>
-                    <select id="semesterSelect" disabled>
-                        <option value="">First select course</option>
-                    </select>
-                </div>
-                <div class="half">
-                    <label>Subject</label>
-                    <select id="subjectName" disabled>
-                        <option value="">First select semester</option>
-                    </select>
-                </div>
-                <div style="width:140px">
-                    <label>Classes/Week</label>
-                    <input id="subjectClasses" type="number" min="0" max="40" value="0" disabled />
-                    <small style="font-size:10px; color:#6b7280; display:block; margin-top:2px;">Auto from
-                        credits</small>
-                </div>
-                <div style="width:140px;align-self:flex-end">
-                    <button id="addSubject" disabled>Add Subject</button>
-                </div>
-            </div>
-
-            <!-- Subjects Table -->
-            <table id="subjectsTable">
-                <thead>
-                    <tr>
-                        <th>Course</th>
-                        <th>Subject</th>
-                        <th>Classes/Week</th>
-                        <th>Assigned Faculty</th>
-                        <th></th>
-                    </tr>
-                </thead>
-                <tbody></tbody>
-            </table>
+        <div style="width:220px">
+          <label>Semester</label>
+          <select id="semesterSelect" disabled>
+            <option value="">First select course</option>
+          </select>
         </div>
-
-        <!-- Generate Routine Section -->
-        <div class="card fade-in" style="animation-delay: 0.4s">
-            <h3 style="margin: 0 0 20px 0; color: #1e40af; font-size: 18px;">⚙️ Generate Routine</h3>
-
-            <div class="flex" style="margin-bottom: 16px;">
-                <div class="half">
-                    <label>Days</label>
-                    <select id="daysSelect">
-                        <option value="5">Monday - Friday (5)</option>
-                        <option value="6">Monday - Saturday (6)</option>
-                    </select>
-                </div>
-                <div style="width:180px">
-                    <label>Periods / day</label>
-                    <input id="periodsPerDay" type="number" min="4" max="10" value="7" />
-                </div>
-                <div style="width:250px;align-self:flex-end">
-                    <input type="file" id="excelFileInput" accept=".xlsx,.xls" style="display:none"
-                        onchange="importExcelRoutine(event)">
-                    <button onclick="document.getElementById('excelFileInput').click()">
-                        Import Excel Routine
-                    </button>
-                    <button id="autoGenerate">🎯 Generate All Semesters</button>
-                    <button id="autoFillRooms" style="background: linear-gradient(135deg, #10b981, #059669);">🏫 Auto Fill Freed Rooms</button>
-                </div>
-                <div style="width:150px;align-self:flex-end">
-                    <button id="clearRoutine" class="secondary">Clear Routine</button>
-                </div>
-            </div>
-
-            <!-- Export Options -->
-            <div class="flex" style="margin-bottom: 16px; gap: 16px;">
-                <div class="half">
-                    <label>Print/Export View</label>
-                    <select id="printViewSelect">
-                        <option value="all">All Semesters Combined</option>
-                        <option value="Semester I">1st Semester Only</option>
-                        <option value="Semester III">3rd Semester Only</option>
-                        <option value="Semester V">5th Semester Only</option>
-                    </select>
-                </div>
-                <div style="width:250px;align-self:flex-end">
-                    <button id="facultyScheduleBtn" style="background: linear-gradient(135deg, #10b981, #059669);">
-                        👨‍🏫 Faculty Schedule Download
-                    </button>
-                </div>
-            </div>
-
-            <div style="margin-top:14px; margin-bottom: 20px;" class="small muted">
-                💡 Auto-generator rules: spread subject classes across week; avoid same faculty consecutive periods when
-                possible; balance workload. Period 4 is automatically set as LUNCH.
-            </div>
-
-            <div class="timetable-container">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-                    <strong style="font-size: 16px; color: #1e40af;">📅 Generated Routine</strong>
-                    <div class="actions">
-                        <button id="printRoutine">🖨️ Print</button>
-                        <button id="exportJSON" class="secondary">Export JSON</button>
-                        <button id="importJSON" class="secondary">Import JSON</button>
-                        <button id="exportCSV">Export CSV</button>
-                        <button id="exportExcel" style="background: linear-gradient(135deg, #059669, #047857);">📊
-                            Export Excel</button>
-                    </div>
-                </div>
-                <div id="timetableWrapper"
-                    style="background: #f8fafc; padding: 20px; border-radius: 12px; min-height: 200px; display: flex; align-items: center; justify-content: center;">
-                    <p class="muted">No routine generated yet. Add subjects and click "Generate All Semesters"</p>
-                </div>
-            </div>
+        <div class="half">
+          <label>Subject</label>
+          <select id="subjectName" disabled>
+            <option value="">First select semester</option>
+          </select>
         </div>
-
-        <div class="card small muted fade-in" style="animation-delay: 0.6s">
-            💡 Tip: The app saves to your browser (localStorage). Use Save / Load before showing to your guide. Faculty
-            can now download their personal schedules!
+        <div style="width:140px">
+          <label>Classes/Week</label>
+          <input id="subjectClasses" type="number" min="0" max="40" value="0" disabled />
+          <small style="font-size:10px;color:#6b7280;display:block;margin-top:2px;">Auto from credits</small>
         </div>
+        <div style="width:140px;align-self:flex-end">
+          <button id="addSubject" disabled>Add Subject</button>
+        </div>
+      </div>
 
-        <!-- Footer -->
-        <footer class="footer">
-            <div class="footer-content">
-                <div class="footer-section">
-                    <h4>Lecture Map</h4>
-                    <p>Professional college routine management system</p>
-                </div>
-                <div class="footer-section">
-                    <h4>Quick Actions</h4>
-                    <p><a href="#" id="footerExport">Export Data</a> • <a href="#" id="footerImport">Import Data</a> •
-                        <a href="#" id="footerFaculty">Faculty Schedule</a>
-                    </p>
-                </div>
-                <div class="footer-section">
-                    <h4>About</h4>
-                    <p>Major Project 5th sem</p>
-                </div>
-            </div>
-            <div class="footer-bottom">
-                <p>©️ 2025 Lecture Map. Made by students of TCEA</p>
-            </div>
-        </footer>
+      <table id="subjectsTable">
+        <thead>
+          <tr>
+            <th>Course / Semester</th>
+            <th>Subject</th>
+            <th>Classes/Week</th>
+            <th>Assigned Faculty</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
     </div>
 
-    <input type="file" id="jsonFileInput" accept=".json" style="display:none" />
-    
-    <script src="readExcel.js"></script>
-    <script type="module" src="main.js"></script>
+    <!-- Generate Routine Section -->
+    <div class="card fade-in" style="animation-delay:0.4s">
+      <h3 style="margin:0 0 20px 0;color:#1e40af;font-size:18px;">⚙️ Generate Routine</h3>
+
+      <div class="flex" style="margin-bottom:16px;flex-wrap:wrap;">
+        <div class="half">
+          <label>Days</label>
+          <select id="daysSelect">
+            <option value="5">Monday – Friday (5)</option>
+            <option value="6">Monday – Saturday (6)</option>
+          </select>
+        </div>
+        <div style="width:180px">
+          <label>Periods / day</label>
+          <input id="periodsPerDay" type="number" min="4" max="10" value="7" />
+        </div>
+        <div style="width:260px;align-self:flex-end;display:flex;flex-direction:column;gap:8px;">
+          <input type="file" id="excelFileInput" accept=".xlsx,.xls" style="display:none"
+            onchange="importExcelRoutine(event)">
+          <button onclick="document.getElementById('excelFileInput').click()">📂 Import Excel Routine</button>
+          <button id="autoGenerate">🎯 Generate All Semesters</button>
+          <button id="autoFillRooms" style="background:linear-gradient(135deg,#10b981,#059669);">🏫 Auto Fill Freed Rooms</button>
+        </div>
+        <div style="width:150px;align-self:flex-end">
+          <button id="clearRoutine" class="secondary">Clear Routine</button>
+        </div>
+      </div>
+
+      <!-- Print/Export row -->
+      <div class="flex" style="margin-bottom:16px;flex-wrap:wrap;gap:16px;">
+        <div class="half">
+          <label>Print / Export View</label>
+          <select id="printViewSelect">
+            <option value="all">All Semesters Combined</option>
+            <option value="Semester I">1st Semester Only</option>
+            <option value="Semester III">3rd Semester Only</option>
+            <option value="Semester V">5th Semester Only</option>
+          </select>
+        </div>
+        <div style="width:250px;align-self:flex-end">
+          <button id="facultyScheduleBtn" style="background:linear-gradient(135deg,#10b981,#059669);">
+            👨‍🏫 Faculty Schedule Download
+          </button>
+        </div>
+      </div>
+
+      <div style="margin:14px 0 20px;" class="small muted">
+        💡 Auto-generator rules: spread classes across week; avoid same faculty consecutive periods; balance workload.
+        Period 4 is automatically LUNCH. Labs are placed as double-periods.
+      </div>
+
+      <div class="timetable-container">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+          <strong style="font-size:16px;color:#1e40af;">📅 Generated Routine</strong>
+          <div class="actions">
+            <button id="printRoutine">🖨️ Print</button>
+            <button id="exportJSON" class="secondary">Export JSON</button>
+            <button id="importJSON" class="secondary">Import JSON</button>
+            <button id="exportCSV">Export CSV</button>
+            <button id="exportExcel" style="background:linear-gradient(135deg,#059669,#047857);">📊 Export Excel</button>
+          </div>
+        </div>
+        <div id="timetableWrapper"
+          style="background:#f8fafc;padding:20px;border-radius:12px;min-height:200px;display:flex;align-items:center;justify-content:center;">
+          <p class="muted">No routine generated yet. Add subjects and click "Generate All Semesters"</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card small muted fade-in" style="animation-delay:0.6s">
+      💡 Tip: The app saves to your browser (localStorage). Use Save / Load before showing to your guide.
+      Faculty can download their personal schedules using the button above!
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <div class="footer-content">
+        <div class="footer-section">
+          <h4>Lecture Map</h4>
+          <p>Professional college routine management system</p>
+        </div>
+        <div class="footer-section">
+          <h4>Quick Actions</h4>
+          <p>
+            <a href="#" id="footerExport">Export Data</a> •
+            <a href="#" id="footerImport">Import Data</a> •
+            <a href="#" id="footerFaculty">Faculty Schedule</a>
+          </p>
+        </div>
+        <div class="footer-section">
+          <h4>About</h4>
+          <p>Major Project 5th Sem — Made by students of TCEA</p>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>©️ 2025 Lecture Map. Made by SDC FROM TCEA</p>
+      </div>
+    </footer>
+  </div>
+
+  <input type="file" id="jsonFileInput" accept=".json" style="display:none" />
+
+  <!-- readExcel is a plain script (uses global XLSX + Swal) -->
+  <script src="readExcel.js"></script>
+  <!-- main.js is an ES module; all other modules load from it -->
+  <script type="module" src="main.js"></script>
 </body>
+
 </html>

@@ -9,4 +9,3 @@ export let state = {
   selectedSemester: '',
   printView: 'all'
 };
-
