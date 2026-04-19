@@ -5,6 +5,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Lecture Map</title>
+  <link rel="icon" type="image/png" href="image.png">
   <link rel="stylesheet" href="style.css" />
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -124,7 +125,8 @@
             onchange="importExcelRoutine(event)">
           <button onclick="document.getElementById('excelFileInput').click()">📂 Import Excel Routine</button>
           <button id="autoGenerate">🎯 Generate All Semesters</button>
-          <button id="autoFillRooms" style="background:linear-gradient(135deg,#10b981,#059669);">🏫 Auto Fill Freed Rooms</button>
+          <button id="autoFillRooms" style="background:linear-gradient(135deg,#10b981,#059669);">🏫 Auto Fill Freed
+            Rooms</button>
         </div>
         <div style="width:150px;align-self:flex-end">
           <button id="clearRoutine" class="secondary">Clear Routine</button>
@@ -155,14 +157,16 @@
       </div>
 
       <div class="timetable-container">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+        <div
+          style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
           <strong style="font-size:16px;color:#1e40af;">📅 Generated Routine</strong>
           <div class="actions">
             <button id="printRoutine">🖨️ Print</button>
             <button id="exportJSON" class="secondary">Export JSON</button>
             <button id="importJSON" class="secondary">Import JSON</button>
             <button id="exportCSV">Export CSV</button>
-            <button id="exportExcel" style="background:linear-gradient(135deg,#059669,#047857);">📊 Export Excel</button>
+            <button id="exportExcel" style="background:linear-gradient(135deg,#059669,#047857);">📊 Export
+              Excel</button>
           </div>
         </div>
         <div id="timetableWrapper"
