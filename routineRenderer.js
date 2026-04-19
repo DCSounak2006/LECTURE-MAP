@@ -32,7 +32,7 @@ export function renderRoutine() {
 
   for (let p = 0; p < state.periodsPerDay; p++) {
     if (p === 3) {
-      html += `<th style="background:linear-gradient(135deg,#92400e,#b45309);min-width:70px;">
+      html += `<th min-width:70px;">
         LUNCH<br><span style="font-size:9px;font-weight:400;">${timeSlots[3] || '01:00-02:00'}</span>
       </th>`;
     } else {
@@ -73,7 +73,7 @@ export function renderRoutine() {
 
         // Fixed lunch column at index 3
         if (p === 3) {
-          html += `<td class="lunch-period">🍽️<br>LUNCH<br>BREAK</td>`;
+          html += `<td class="lunch-period">LUNCH</td>`;
           p++;
           continue;
         }
@@ -138,13 +138,13 @@ function buildCell(cls, sem, day, period, span) {
       style="color:#9ca3af;font-size:11px;text-align:center;cursor:pointer;
              vertical-align:middle;padding:8px 5px;">
       <div class="time-slot">${timeSlots[period] || ''}</div>
-      Free
+      Doubt Class
     </td>`;
   }
 
   // Lunch
   if (cls.lunch) {
-    return `<td class="lunch-period">🍽️<br>LUNCH<br>BREAK</td>`;
+    return `<td class="lunch-period">LUNCH</td>`;
   }
 
   // Auto-filled freed room
@@ -159,8 +159,8 @@ function buildCell(cls, sem, day, period, span) {
 
   // Normal / Lab class
   const isLab = cls.isLabRoom || span > 1;
-  const bgStyle = isLab ? 'background:#fce7f3;' : '';
-  const borderStyle = isLab ? 'border-left:3px solid #7c3aed;' : '';
+  const bgStyle = isLab ? 'background:rgba(134, 239, 172, 0.2);' : '';
+  const borderStyle = isLab ? 'border-left:3px solid rgba(124, 58, 237, 0.5);' : '';
   const roomBadgeClass = isLab ? 'room-badge-lab' : (cls.roomNumber ? 'room-badge' : 'room-badge-empty');
   const roomText = cls.roomNumber || 'No Room';
 
@@ -169,22 +169,20 @@ function buildCell(cls, sem, day, period, span) {
     : (timeSlots[period] || '');
 
   const labTag = span > 1
-    ? `<span style="font-size:9px;color:#7c3aed;font-weight:700;">⚗️ LAB (${span} periods)</span><br>`
+    ? `<span style="font-size:9px;color:#7c3aed;font-weight:700;">LAB (${span} periods)</span><br>`
     : '';
 
   return `<td ${colspanAttr}
     style="text-align:center;vertical-align:middle;cursor:pointer;
            padding:8px 5px;${bgStyle}${borderStyle}">
-    <div class="time-slot">${timeRange}</div>
     ${labTag}
     <strong style="display:block;margin-bottom:4px;font-size:12px;color:#1e40af;">
       ${cls.subjectName || ''}
     </strong>
-    <span class="teacher-label">${cls.teacherName || 'Unassigned'}</span><br>
-    <span class="${roomBadgeClass}" style="margin-top:4px;">${roomText}</span>
+    <span class="teacher-label">${cls.teacherName || 'Unassigned'} - ${roomText}</span><br>
   </td>`;
 }
-
+// <span class="${roomBadgeClass}" style="margin-top:4px;"></span>
 // ── Faculty Schedule — in-page full-screen overlay (like old design) ──────────
 
 export function showFacultySchedule() {
@@ -312,10 +310,10 @@ export function showFacultySchedule() {
         </div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;">
           ${semesters.map(sem =>
-            `<span style="background:linear-gradient(135deg,#dbeafe,#bfdbfe);
+      `<span style="background:linear-gradient(135deg,#dbeafe,#bfdbfe);
                           color:#1e40af;padding:4px 12px;border-radius:20px;
                           font-size:11px;font-weight:700;">${sem}</span>`
-          ).join('')}
+    ).join('')}
         </div>
       </div>
 
@@ -370,8 +368,8 @@ export function showFacultySchedule() {
             </td>
             <td style="padding:11px 14px;text-align:center;">
               <span style="background:${slot.isLab
-                ? 'linear-gradient(135deg,#ede9fe,#ddd6fe)'
-                : 'linear-gradient(135deg,#d1fae5,#a7f3d0)'};
+            ? 'linear-gradient(135deg,#ede9fe,#ddd6fe)'
+            : 'linear-gradient(135deg,#d1fae5,#a7f3d0)'};
                            color:${slot.isLab ? '#6d28d9' : '#065f46'};
                            padding:3px 10px;border-radius:12px;
                            font-size:11px;font-weight:700;">
